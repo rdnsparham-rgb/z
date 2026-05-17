@@ -1,0 +1,60 @@
+name: "اسکرپ کامل با اسم رندوم"
+
+on:
+  workflow_dispatch:
+
+jobs:
+  scrape:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      
+      - name: نصب و اجرا
+        run: |
+          pip install requests beautifulsoup4 html2md
+          python -c "
+import requests, random, string, os, html2md
+from bs4 import BeautifulSoup
+from urllib.parse import urljoin
+
+os.makedirs('output/images', exist_ok=True)
+
+# ۱. دریافت صفحه
+r = requests.get('https://iran.ir')
+soup = BeautifulSoup(r.text, 'html.parser')
+
+# ۲. دانلود همه عکس‌ها
+for i, img in enumerate(soup.find_all('img')):
+    if img.get('src'):
+        url = urljoin('https://iran.ir', img['src'])
+        try:
+            data = requests.get(url, timeout=10).content
+            ext = url.split('.')[-1].split('?')[0][:4]
+            name = f'output/images/img_{i}.{ext if ext else \"jpg\"}'
+            with open(name, 'wb') as f:
+                f.write(data)
+            img['src'] = name
+        except:
+            pass
+
+# ۳. تبدیل به Markdown
+md_content = html2md.convert(str(soup))
+
+# ۴. ذخیره با اسم رندوم ۱۰ کاراکتری
+rand_name = ''.join(random.choices('abcdefghijklmnopqrstuvwxyz0123456789', k=10))
+with open(f'output/{rand_name}.md', 'w', encoding='utf-8') as f:
+    f.write(md_content)
+
+print(f'✅ ذخیره شد: output/{rand_name}.md')
+"
+
+      - name: آپلود به مخزن
+        run: |
+          git config user.name "bot"
+          git config user.email "bot@users.noreply.github.com"
+          git add output/
+          git commit -m "اسکرپ خودکار $(date)" || echo "تغییری نیست"
+          git push
